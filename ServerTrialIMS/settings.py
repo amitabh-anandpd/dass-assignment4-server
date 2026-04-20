@@ -12,6 +12,12 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 
+try:
+    import rest_framework_simplejwt  # noqa: F401
+    SIMPLEJWT_AVAILABLE = True
+except ImportError:
+    SIMPLEJWT_AVAILABLE = False
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -132,7 +138,9 @@ AUTH_USER_MODEL = 'accounts.User'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        *([
+            'rest_framework_simplejwt.authentication.JWTAuthentication',
+        ] if SIMPLEJWT_AVAILABLE else []),
         'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
