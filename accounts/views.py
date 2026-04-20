@@ -25,15 +25,33 @@ def signup(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login_user(request):
-    username = request.data.get('username')
+    identifier = (
+        request.data.get('username')
+        or request.data.get('email')
+        or request.data.get('identifier')
+    )
     password = request.data.get('password')
 
-    if not username or not password:
-        return Response({'detail': 'username and password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+    if not identifier or not password:
+        return Response(
+            {'detail': 'username/email and password are required.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    identifier = identifier.strip()
+
+    username = identifier
+    if '@' in identifier:
+        user_obj = User.objects.filter(email__iexact=identifier).first()
+        if user_obj:
+            username = user_obj.username
 
     user = authenticate(request, username=username, password=password)
     if not user:
         return Response({'detail': 'Invalid credentials.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    if not user.is_active:
+        return Response({'detail': 'User account is inactive.'}, status=status.HTTP_403_FORBIDDEN)
 
     login(request, user)
     return Response({'detail': 'Login successful.', 'user_id': user.id, 'username': user.username}, status=status.HTTP_200_OK)
