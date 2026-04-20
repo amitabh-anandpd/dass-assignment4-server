@@ -1,5 +1,10 @@
 from django.contrib.auth import get_user_model
-from rest_framework import viewsets
+from django.contrib.auth import authenticate, login
+from django.shortcuts import get_object_or_404
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
 
 from .models import Configuration, SystemConfiguration
 from .serializers import ConfigurationSerializer, SystemConfigurationSerializer, UserSerializer
@@ -7,16 +12,124 @@ from .serializers import ConfigurationSerializer, SystemConfigurationSerializer,
 User = get_user_model()
 
 
-class UserViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.all().order_by('id')
-    serializer_class = UserSerializer
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def signup(request):
+    serializer = UserSerializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.save()
+        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class ConfigurationViewSet(viewsets.ModelViewSet):
-    queryset = Configuration.objects.select_related('user').all().order_by('id')
-    serializer_class = ConfigurationSerializer
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login_user(request):
+    username = request.data.get('username')
+    password = request.data.get('password')
+
+    if not username or not password:
+        return Response({'detail': 'username and password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    user = authenticate(request, username=username, password=password)
+    if not user:
+        return Response({'detail': 'Invalid credentials.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    login(request, user)
+    return Response({'detail': 'Login successful.', 'user_id': user.id, 'username': user.username}, status=status.HTTP_200_OK)
 
 
-class SystemConfigurationViewSet(viewsets.ModelViewSet):
-    queryset = SystemConfiguration.objects.all().order_by('id')
-    serializer_class = SystemConfigurationSerializer
+@api_view(['GET', 'POST'])
+def users_list_create(request):
+    if request.method == 'GET':
+        queryset = User.objects.all().order_by('id')
+        return Response(UserSerializer(queryset, many=True).data)
+
+    serializer = UserSerializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.save()
+        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET', 'PUT', 'PATCH', 'DELETE'])
+def users_detail(request, pk):
+    user = get_object_or_404(User, pk=pk)
+
+    if request.method == 'GET':
+        return Response(UserSerializer(user).data)
+
+    if request.method in ['PUT', 'PATCH']:
+        partial = request.method == 'PATCH'
+        serializer = UserSerializer(user, data=request.data, partial=partial)
+        if serializer.is_valid():
+            user = serializer.save()
+            return Response(UserSerializer(user).data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    user.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['GET', 'POST'])
+def configurations_list_create(request):
+    if request.method == 'GET':
+        queryset = Configuration.objects.select_related('user').all().order_by('id')
+        return Response(ConfigurationSerializer(queryset, many=True).data)
+
+    serializer = ConfigurationSerializer(data=request.data)
+    if serializer.is_valid():
+        item = serializer.save()
+        return Response(ConfigurationSerializer(item).data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET', 'PUT', 'PATCH', 'DELETE'])
+def configurations_detail(request, pk):
+    item = get_object_or_404(Configuration, pk=pk)
+
+    if request.method == 'GET':
+        return Response(ConfigurationSerializer(item).data)
+
+    if request.method in ['PUT', 'PATCH']:
+        partial = request.method == 'PATCH'
+        serializer = ConfigurationSerializer(item, data=request.data, partial=partial)
+        if serializer.is_valid():
+            item = serializer.save()
+            return Response(ConfigurationSerializer(item).data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    item.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['GET', 'POST'])
+def system_configurations_list_create(request):
+    if request.method == 'GET':
+        queryset = SystemConfiguration.objects.all().order_by('id')
+        return Response(SystemConfigurationSerializer(queryset, many=True).data)
+
+    serializer = SystemConfigurationSerializer(data=request.data)
+    if serializer.is_valid():
+        item = serializer.save()
+        return Response(SystemConfigurationSerializer(item).data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET', 'PUT', 'PATCH', 'DELETE'])
+def system_configurations_detail(request, pk):
+    item = get_object_or_404(SystemConfiguration, pk=pk)
+
+    if request.method == 'GET':
+        return Response(SystemConfigurationSerializer(item).data)
+
+    if request.method in ['PUT', 'PATCH']:
+        partial = request.method == 'PATCH'
+        serializer = SystemConfigurationSerializer(item, data=request.data, partial=partial)
+        if serializer.is_valid():
+            item = serializer.save()
+            return Response(SystemConfigurationSerializer(item).data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    item.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
