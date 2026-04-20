@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth import authenticate, login
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -47,13 +48,22 @@ def login_user(request):
             username = user_obj.username
 
     user = authenticate(request, username=username, password=password)
+
+    # Fallback path for deployments where backend auth resolution differs.
+    if not user:
+        candidate = User.objects.filter(
+            Q(username__iexact=identifier) | Q(email__iexact=identifier)
+        ).first()
+        if candidate and candidate.check_password(password):
+            user = candidate
+
     if not user:
         return Response({'detail': 'Invalid credentials.'}, status=status.HTTP_401_UNAUTHORIZED)
 
     if not user.is_active:
         return Response({'detail': 'User account is inactive.'}, status=status.HTTP_403_FORBIDDEN)
 
-    login(request, user)
+    login(request, user, backend='django.contrib.auth.backends.ModelBackend')
     return Response({'detail': 'Login successful.', 'user_id': user.id, 'username': user.username}, status=status.HTTP_200_OK)
 
 
